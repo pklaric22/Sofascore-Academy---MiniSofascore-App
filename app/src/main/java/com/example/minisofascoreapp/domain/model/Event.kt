@@ -18,3 +18,11 @@ data class Event(
     val round: Int
 )
 
+fun Event.isPast(): Boolean {
+    return status == "finished"
+}
+
+fun Event.dateGroupLabel(): String {
+    return if (isPast()) "Past Matches" else "Upcoming Matches"
+}
+

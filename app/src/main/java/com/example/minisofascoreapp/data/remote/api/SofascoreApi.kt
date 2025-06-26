@@ -12,8 +12,8 @@ interface SofascoreApi {
 
     @GET("sport/{slug}/events/{date}")
     suspend fun getEventsForDate(
-        @Path("slug") sport: String,      // npr. "football"
-        @Path("date") date: String        // npr. "2025-06-11"
+        @Path("slug") sport: String,
+        @Path("date") date: String
     ): List<EventDto>
 
     @GET("event/{id}")
@@ -22,9 +22,15 @@ interface SofascoreApi {
     @GET("event/{id}/incidents")
     suspend fun getEventIncident(@Path("id") id: Long): List<IncidentDto>
 
-    @GET("/tournament/{id}/events/last/{page}")
-    suspend fun getTournamentEvents(
-        @Path("id") teamId: Long,
+    @GET("tournament/{id}/events/next/{page}")
+    suspend fun getTournamentEventsNext(
+        @Path("id") id: Long,
+        @Path("page") page: Int
+    ): List<EventDto>
+
+    @GET("tournament/{id}/events/last/{page}")
+    suspend fun getTournamentEventsLast(
+        @Path("id") id: Long,
         @Path("page") page: Int
     ): List<EventDto>
 

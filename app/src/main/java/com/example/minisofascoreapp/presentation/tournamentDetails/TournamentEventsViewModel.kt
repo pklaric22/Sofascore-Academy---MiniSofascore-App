@@ -3,12 +3,16 @@ package com.example.minisofascoreapp.presentation.tournamentDetails
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import androidx.paging.insertSeparators
+import androidx.paging.map
 import com.example.minisofascoreapp.domain.model.Event
+import com.example.minisofascoreapp.domain.model.dateGroupLabel
+import com.example.minisofascoreapp.domain.model.isPast
 import com.example.minisofascoreapp.domain.repository.TournamentRepository
-import com.example.minisofascoreapp.utils.PaginatedSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -17,46 +21,29 @@ class TournamentEventsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private lateinit var paginatedSource: PaginatedSource<Event>
+    private val tournamentId = savedStateHandle.get<String>("tournamentId")?.toLongOrNull()
+        ?: error("Missing or invalid tournamentId")
 
-    private val _state = MutableStateFlow(EventDetailsState())
-    val state: StateFlow<EventDetailsState> = _state
+    val events: StateFlow<PagingData<Event>> = repository
+        .getPagedTournamentEvents(tournamentId)
+        .cachedIn(viewModelScope)
+        .stateIn(viewModelScope, SharingStarted.Lazily, PagingData.empty())
 
-    init {
-        val tournamentId = savedStateHandle.get<String>("tournamentId")?.toLongOrNull()
-            ?: error("tournamentId argument is missing or not a valid Long")
-        loadEvent(tournamentId)
-    }
+    val eventsWithSeparators = events.map { pagingData ->
+        pagingData
+            .map { EventUiItem.EventItem(it) }
+            .insertSeparators { before, after ->
+                val beforeEvent = before?.event
+                val afterEvent = after?.event
 
-    fun loadEvent(id: Long) {
-        viewModelScope.launch {
-            _state.value = EventDetailsState(isLoading = true)
-            repository.getTournamentEvents(id)
-                .onEach { source ->
-                    paginatedSource = source
-                    source.items
-                        .stateIn(viewModelScope)
-                        .drop(1)
-                        .collect {
-                            _state.value =
-                                EventDetailsState(groupedEvents = it.groupBy { it.round })
-                        }
-                }
-                .launchIn(this)
-        }
-    }
+                if (beforeEvent == null && afterEvent != null) {
+                    EventUiItem.Separator(afterEvent.dateGroupLabel())
+                } else if (beforeEvent != null && afterEvent != null &&
+                    beforeEvent.isPast() != afterEvent.isPast()
+                ) {
+                    EventUiItem.Separator(afterEvent.dateGroupLabel())
+                } else null
+            }
+    }.cachedIn(viewModelScope)
 
-    fun loadNextPage() {
-        paginatedSource.nextPage()
-    }
-
-    fun refresh() {
-        paginatedSource.reset()
-    }
 }
-
-data class EventDetailsState(
-    val isLoading: Boolean = false,
-    val groupedEvents: Map<Int, List<Event>> = emptyMap(),
-    val error: String? = null
-)
